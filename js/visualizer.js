@@ -93,7 +93,17 @@ function initialize1DVisualization() {
     
     // State variables
     let arraySize = parseInt(arraySizeSlider.value);
-    let kernelSize = parseInt(kernelSizeSlider.value);
+    let kernelSize = Math.min(parseInt(kernelSizeSlider.value), arraySize);
+    
+    // Update kernel slider if needed
+    if (kernelSize !== parseInt(kernelSizeSlider.value)) {
+        kernelSizeSlider.value = kernelSize;
+    }
+    
+    // Update displayed values
+    arraySizeValue.textContent = arraySize;
+    kernelSizeValue.textContent = kernelSize;
+    
     let tileSize = parseInt(tileSizeSlider.value);
     let operation = operationSelect.value;
     let inputArray = [];
@@ -106,14 +116,18 @@ function initialize1DVisualization() {
     
     // Initialize the arrays
     function initializeArrays() {
+        // Ensure kernel size is valid
+        kernelSize = Math.min(kernelSize, arraySize);
+        
         // Generate random input array
         inputArray = Array.from({length: arraySize}, () => Math.floor(Math.random() * 10));
         
         // Generate random kernel array
         kernelArray = Array.from({length: kernelSize}, () => Math.floor(Math.random() * 5));
         
-        // Initialize output array
-        outputArray = Array(arraySize - kernelSize + 1).fill(0);
+        // Initialize output array - ensure it has proper size
+        const outputSize = Math.max(1, arraySize - kernelSize + 1);
+        outputArray = Array(outputSize).fill(0);
         
         // Reset step trackers
         naiveCurrentStep = {x: 0, k: 0};
@@ -126,6 +140,13 @@ function initialize1DVisualization() {
         while (naiveCanvas.firstChild) naiveCanvas.removeChild(naiveCanvas.firstChild);
         while (tiledCanvas.firstChild) tiledCanvas.removeChild(tiledCanvas.firstChild);
         while (outputCanvas.firstChild) outputCanvas.removeChild(outputCanvas.firstChild);
+        
+        // Also clear the kernel visualization
+        const kernelVis = document.getElementById('1d-kernel-visualization');
+        while (kernelVis.firstChild) kernelVis.removeChild(kernelVis.firstChild);
+        
+        // Calculate cell size
+        const cellSize = Math.min(naiveCanvas.clientWidth / arraySize, 30);
         
         // Create array containers
         const naiveInputContainer = document.createElement('div');
@@ -141,8 +162,30 @@ function initialize1DVisualization() {
         const outputContainer = document.createElement('div');
         outputContainer.className = 'output-array';
         
-        // Calculate cell size
-        const cellSize = Math.min(naiveCanvas.clientWidth / arraySize, 30);
+        // Draw kernel visualization
+        const kernelContainer = document.createElement('div');
+        kernelContainer.className = 'kernel-display';
+        
+        // Add original kernel values to the box
+        for (let i = 0; i < kernelSize; i++) {
+            const cell = document.createElement('div');
+            cell.className = 'cell kernel';
+            cell.style.width = `${cellSize * 1.5}px`;
+            cell.style.height = `${cellSize * 1.5}px`;
+            cell.textContent = kernelArray[i];
+            kernelContainer.appendChild(cell);
+        }
+        
+        // Add note about kernel flipping for convolution
+        if (operation === 'convolution') {
+            const flipNote = document.createElement('div');
+            flipNote.className = 'kernel-flip-note';
+            flipNote.textContent = '(Kernel is flipped during convolution)';
+            kernelVis.appendChild(kernelContainer);
+            kernelVis.appendChild(flipNote);
+        } else {
+            kernelVis.appendChild(kernelContainer);
+        }
         
         // Draw naive implementation
         for (let i = 0; i < arraySize; i++) {
@@ -357,14 +400,29 @@ function initialize1DVisualization() {
     arraySizeSlider.addEventListener('input', function() {
         arraySize = parseInt(this.value);
         arraySizeValue.textContent = arraySize;
+        
+        // Ensure kernel size doesn't exceed array size
+        if (kernelSize > arraySize) {
+            kernelSize = arraySize;
+            kernelSizeSlider.value = kernelSize;
+            kernelSizeValue.textContent = kernelSize;
+        }
+        
         resetVisualization();
         initializeArrays();
         draw1DArrays();
     });
     
     kernelSizeSlider.addEventListener('input', function() {
-        kernelSize = parseInt(this.value);
+        // Ensure kernel size doesn't exceed array size
+        kernelSize = Math.min(parseInt(this.value), arraySize);
         kernelSizeValue.textContent = kernelSize;
+        
+        // Update slider value if it was constrained
+        if (parseInt(this.value) !== kernelSize) {
+            this.value = kernelSize;
+        }
+        
         resetVisualization();
         initializeArrays();
         draw1DArrays();
@@ -1225,8 +1283,15 @@ function initialize3DVisualization() {
     });
     
     kernelSizeSlider.addEventListener('input', function() {
-        kernelSize = parseInt(this.value);
+        // Ensure kernel size doesn't exceed array size
+        kernelSize = Math.min(parseInt(this.value), volumeSize);
         kernelSizeValue.textContent = `${kernelSize}×${kernelSize}×${kernelSize}`;
+        
+        // Update slider value if it was constrained
+        if (parseInt(this.value) !== kernelSize) {
+            this.value = kernelSize;
+        }
+        
         resetVisualization();
         initializeVolumes();
         draw3DVolumes();
