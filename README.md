@@ -117,6 +117,15 @@ Convolution is a mathematical operation that expresses how the shape of one func
 - **Naive 2D Convolution**: A straightforward implementation with four nested loops to compute each output pixel.
 - **Tiled 2D Convolution**: An implementation that processes the image in tiles to improve cache performance.
 
+## 3D Convolution
+
+3D convolution further extends the concept to volumetric data, which is essential for processing 3D images, videos (where time is the third dimension), or scientific data like MRI scans. The kernel is flipped in all three dimensions.
+
+### Implementation Details:
+
+- **Naive 3D Convolution**: A direct implementation with six nested loops (three for output positions, three for kernel positions) to compute each output voxel.
+- **Tiled 3D Convolution**: An optimized implementation that processes the volume in 3D tiles to improve cache locality and performance.
+
 ## Learning the Algorithms
 
 To gain a better understanding of how these algorithms work, the Template Mode allows you to implement them yourself:
@@ -232,6 +241,32 @@ bin/tiled_convolution_2d
 bin/convolution_2d_comparison
 ```
 
+### 3D Convolution
+
+#### Compiling the implementations:
+```bash
+# Compile the naive implementation
+gcc -o bin/convolution_3d 3d_convolution/naive/convolution_3d.c
+
+# Compile the tiled implementation
+gcc -o bin/tiled_convolution_3d 3d_convolution/tiled/tiled_convolution_3d.c
+
+# Compile the performance comparison
+gcc -o bin/convolution_3d_comparison 3d_convolution/convolution_3d_comparison.c
+```
+
+#### Running the tests:
+```bash
+# Run the naive implementation
+bin/convolution_3d
+
+# Run the tiled implementation
+bin/tiled_convolution_3d
+
+# Run the performance comparison (recommended)
+bin/convolution_3d_comparison
+```
+
 ## Default Values
 
 The script uses the following default values:
@@ -247,6 +282,11 @@ The script uses the following default values:
 - Kernel B size: 5×5
 - Tile height: 32
 - Tile width: 32
+
+### 3D Convolution:
+- Volume A size: 50×50×50
+- Kernel B size: 5×5×5
+- Tile size: 8×8×8
 
 ## Tile Size Optimization
 
