@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Convolution & Cross-Correlation Visualizer</title>
+    <link rel="stylesheet" href="css/style.css">
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/p5@1.4.0/lib/p5.js"></script>
+</head>
+<body>
+    <header>
+        <h1>Convolution & Cross-Correlation Visualizer</h1>
+        <p>Interactive visualizations for naive and tiled implementations</p>
+        <nav>
+            <ul>
+                <li><a href="#1d" class="active">1D</a></li>
+                <li><a href="#2d">2D</a></li>
+                <li><a href="#3d">3D</a></li>
+                <li><a href="#about">About</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main>
+        <section id="intro">
+            <h2>Understanding Convolution & Cross-Correlation</h2>
+            <p>
+                This interactive visualization helps you understand how convolution and cross-correlation
+                algorithms work, both in their naive implementations and with tiled optimizations for better cache performance.
+            </p>
+            <p>
+                Select a dimension from the menu above to start exploring!
+            </p>
+        </section>
+
+        <section id="1d" class="visualization-container active">
+            <h2>1D Visualization</h2>
+            <div class="controls">
+                <div class="input-group">
+                    <label for="1d-array-size">Input Array Size:</label>
+                    <input type="range" id="1d-array-size" min="8" max="50" value="20">
+                    <span id="1d-array-size-value">20</span>
+                </div>
+                <div class="input-group">
+                    <label for="1d-kernel-size">Kernel Size:</label>
+                    <input type="range" id="1d-kernel-size" min="3" max="9" value="5" step="2">
+                    <span id="1d-kernel-size-value">5</span>
+                </div>
+                <div class="input-group">
+                    <label for="1d-tile-size">Tile Size:</label>
+                    <input type="range" id="1d-tile-size" min="2" max="8" value="4">
+                    <span id="1d-tile-size-value">4</span>
+                </div>
+                <div class="input-group">
+                    <label for="1d-operation">Operation:</label>
+                    <select id="1d-operation">
+                        <option value="convolution">Convolution</option>
+                        <option value="cross-correlation">Cross-Correlation</option>
+                    </select>
+                </div>
+                <button id="1d-random">Randomize Data</button>
+                <button id="1d-play">Play Animation</button>
+                <button id="1d-step">Step</button>
+                <button id="1d-reset">Reset</button>
+            </div>
+            <div class="visualization-area">
+                <div class="canvas-container">
+                    <h3>Naive Implementation</h3>
+                    <div id="1d-naive-canvas"></div>
+                </div>
+                <div class="canvas-container">
+                    <h3>Tiled Implementation</h3>
+                    <div id="1d-tiled-canvas"></div>
+                </div>
+            </div>
+            <div class="result-container">
+                <h3>Output</h3>
+                <div id="1d-output-visualization"></div>
+            </div>
+            <div class="explanation">
+                <h3>How It Works</h3>
+                <div id="1d-explanation">
+                    <p>In 1D convolution, the kernel is flipped and then used to compute a weighted sum at each position of the input array.</p>
+                    <p>The tiled approach divides the input into smaller chunks to improve cache utilization.</p>
+                </div>
+            </div>
+        </section>
+
+        <section id="2d" class="visualization-container">
+            <h2>2D Visualization</h2>
+            <div class="controls">
+                <div class="input-group">
+                    <label for="2d-matrix-size">Matrix Size:</label>
+                    <input type="range" id="2d-matrix-size" min="5" max="20" value="10">
+                    <span id="2d-matrix-size-value">10×10</span>
+                </div>
+                <div class="input-group">
+                    <label for="2d-kernel-size">Kernel Size:</label>
+                    <input type="range" id="2d-kernel-size" min="3" max="7" value="3" step="2">
+                    <span id="2d-kernel-size-value">3×3</span>
+                </div>
+                <div class="input-group">
+                    <label for="2d-tile-size">Tile Size:</label>
+                    <input type="range" id="2d-tile-size" min="2" max="5" value="3">
+                    <span id="2d-tile-size-value">3×3</span>
+                </div>
+                <div class="input-group">
+                    <label for="2d-operation">Operation:</label>
+                    <select id="2d-operation">
+                        <option value="convolution">Convolution</option>
+                        <option value="cross-correlation">Cross-Correlation</option>
+                    </select>
+                </div>
+                <button id="2d-random">Randomize Data</button>
+                <button id="2d-play">Play Animation</button>
+                <button id="2d-step">Step</button>
+                <button id="2d-reset">Reset</button>
+            </div>
+            <div class="visualization-area">
+                <div class="canvas-container">
+                    <h3>Naive Implementation</h3>
+                    <div id="2d-naive-canvas"></div>
+                </div>
+                <div class="canvas-container">
+                    <h3>Tiled Implementation</h3>
+                    <div id="2d-tiled-canvas"></div>
+                </div>
+            </div>
+            <div class="result-container">
+                <h3>Output</h3>
+                <div id="2d-output-visualization"></div>
+            </div>
+            <div class="explanation">
+                <h3>How It Works</h3>
+                <div id="2d-explanation">
+                    <p>In 2D convolution, the kernel is flipped both horizontally and vertically, then used to compute a weighted sum at each position of the input matrix.</p>
+                    <p>The tiled approach processes the image in small rectangular regions to maximize cache efficiency.</p>
+                </div>
+            </div>
+        </section>
+
+        <section id="3d" class="visualization-container">
+            <h2>3D Visualization</h2>
+            <div class="controls">
+                <div class="input-group">
+                    <label for="3d-volume-size">Volume Size:</label>
+                    <input type="range" id="3d-volume-size" min="4" max="10" value="5">
+                    <span id="3d-volume-size-value">5×5×5</span>
+                </div>
+                <div class="input-group">
+                    <label for="3d-kernel-size">Kernel Size:</label>
+                    <input type="range" id="3d-kernel-size" min="3" max="5" value="3" step="2">
+                    <span id="3d-kernel-size-value">3×3×3</span>
+                </div>
+                <div class="input-group">
+                    <label for="3d-tile-size">Tile Size:</label>
+                    <input type="range" id="3d-tile-size" min="2" max="4" value="2">
+                    <span id="3d-tile-size-value">2×2×2</span>
+                </div>
+                <div class="input-group">
+                    <label for="3d-operation">Operation:</label>
+                    <select id="3d-operation">
+                        <option value="convolution">Convolution</option>
+                        <option value="cross-correlation">Cross-Correlation</option>
+                    </select>
+                </div>
+                <button id="3d-random">Randomize Data</button>
+                <button id="3d-play">Play Animation</button>
+                <button id="3d-step">Step</button>
+                <button id="3d-reset">Reset</button>
+            </div>
+            <div class="visualization-area">
+                <div class="canvas-container">
+                    <h3>Naive Implementation</h3>
+                    <div id="3d-naive-canvas"></div>
+                </div>
+                <div class="canvas-container">
+                    <h3>Tiled Implementation</h3>
+                    <div id="3d-tiled-canvas"></div>
+                </div>
+            </div>
+            <div class="result-container">
+                <h3>Output</h3>
+                <div id="3d-output-visualization"></div>
+            </div>
+            <div class="explanation">
+                <h3>How It Works</h3>
+                <div id="3d-explanation">
+                    <p>In 3D convolution, the kernel is flipped in all three dimensions before being applied to the input volume.</p>
+                    <p>The tiled implementation processes the data in 3D blocks to improve cache locality and performance.</p>
+                </div>
+            </div>
+        </section>
+
+        <section id="about" class="visualization-container">
+            <h2>About This Visualizer</h2>
+            <p>This visualization tool was created to help understand the implementation details of convolution and cross-correlation algorithms and their optimized tiled versions.</p>
+            <p>The visualizations show:</p>
+            <ul>
+                <li>How the naive implementations work by directly computing each output element</li>
+                <li>How tiled implementations improve cache performance by processing data in chunks</li>
+                <li>The differences between convolution (where the kernel is flipped) and cross-correlation</li>
+            </ul>
+            <p>Source code and implementation details for these algorithms can be found in the <a href="https://github.com/npcarter2025/TileAlgorithms" target="_blank">TileAlgorithms GitHub repository</a>.</p>
+        </section>
+    </main>
+
+    <footer>
+        <p>Created by Nathan Carter | <a href="https://github.com/npcarter2025/TileAlgorithms" target="_blank">GitHub Repository</a></p>
+    </footer>
+
+    <script src="js/visualizer.js"></script>
+</body>
+</html> 
