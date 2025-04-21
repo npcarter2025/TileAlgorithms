@@ -531,6 +531,10 @@ function initialize2DVisualization() {
         while (tiledCanvas.firstChild) tiledCanvas.removeChild(tiledCanvas.firstChild);
         while (outputCanvas.firstChild) outputCanvas.removeChild(outputCanvas.firstChild);
         
+        // Also clear the kernel visualization
+        const kernelVis = document.getElementById('2d-kernel-visualization');
+        while (kernelVis.firstChild) kernelVis.removeChild(kernelVis.firstChild);
+        
         // Calculate cell size
         const cellSize = Math.min(
             Math.min(naiveCanvas.clientWidth, naiveCanvas.clientHeight) / matrixSize,
@@ -627,6 +631,45 @@ function initialize2DVisualization() {
                 
                 outputMatrixContainer.appendChild(cell);
             }
+        }
+        
+        // Draw kernel visualization
+        const kernelVisTitle = document.createElement('div');
+        kernelVisTitle.className = 'kernel-vis-title';
+        kernelVisTitle.textContent = `${operation === 'convolution' ? 'Convolution' : 'Cross-Correlation'} Kernel:`;
+        
+        const kernelMatrixContainer = document.createElement('div');
+        kernelMatrixContainer.style.display = 'grid';
+        kernelMatrixContainer.style.gridTemplateColumns = `repeat(${kernelSize}, ${cellSize * 1.5}px)`;
+        kernelMatrixContainer.style.gap = '1px';
+        kernelMatrixContainer.style.margin = '10px auto';
+        kernelMatrixContainer.style.width = 'fit-content';
+        
+        for (let y = 0; y < kernelSize; y++) {
+            for (let x = 0; x < kernelSize; x++) {
+                const cell = document.createElement('div');
+                cell.className = 'cell kernel';
+                cell.style.width = `${cellSize * 1.5}px`;
+                cell.style.height = `${cellSize * 1.5}px`;
+                
+                // For convolution display, don't flip the kernel for clarity
+                cell.textContent = kernelMatrix[y][x];
+                
+                kernelMatrixContainer.appendChild(cell);
+            }
+        }
+        
+        // Add note about kernel flipping for convolution
+        if (operation === 'convolution') {
+            const flipNote = document.createElement('div');
+            flipNote.className = 'kernel-flip-note';
+            flipNote.textContent = '(Kernel is flipped during convolution)';
+            kernelVis.appendChild(kernelVisTitle);
+            kernelVis.appendChild(kernelMatrixContainer);
+            kernelVis.appendChild(flipNote);
+        } else {
+            kernelVis.appendChild(kernelVisTitle);
+            kernelVis.appendChild(kernelMatrixContainer);
         }
         
         // Add elements to canvases
@@ -907,6 +950,10 @@ function initialize3DVisualization() {
         while (tiledCanvas.firstChild) tiledCanvas.removeChild(tiledCanvas.firstChild);
         while (outputCanvas.firstChild) outputCanvas.removeChild(outputCanvas.firstChild);
         
+        // Also clear the kernel visualization
+        const kernelVis = document.getElementById('3d-kernel-visualization');
+        while (kernelVis.firstChild) kernelVis.removeChild(kernelVis.firstChild);
+        
         // Add slice controls if they don't exist
         if (!document.querySelector('.three-d-controls')) {
             // For input volume
@@ -1091,6 +1138,92 @@ function initialize3DVisualization() {
         naiveCanvas.appendChild(naiveMatrixContainer);
         tiledCanvas.appendChild(tiledMatrixContainer);
         outputCanvas.appendChild(outputMatrixContainer);
+        
+        // Draw kernel visualization
+        const kernelVisTitle = document.createElement('div');
+        kernelVisTitle.className = 'kernel-vis-title';
+        kernelVisTitle.textContent = `${operation === 'convolution' ? 'Convolution' : 'Cross-Correlation'} Kernel:`;
+        kernelVis.appendChild(kernelVisTitle);
+        
+        // Add slice navigation for kernel
+        let currentKernelSlice = Math.min(Math.floor(kernelSize / 2), currentViewZ);
+        
+        const kernelControls = document.createElement('div');
+        kernelControls.className = 'three-d-controls';
+        
+        const kernelPrevButton = document.createElement('button');
+        kernelPrevButton.className = 'three-d-view-button';
+        kernelPrevButton.textContent = '← Prev Slice';
+        kernelPrevButton.addEventListener('click', function() {
+            currentKernelSlice = Math.max(0, currentKernelSlice - 1);
+            updateKernelVisualization();
+        });
+        
+        const kernelSliceIndicator = document.createElement('span');
+        kernelSliceIndicator.id = 'kernel-slice-indicator';
+        kernelSliceIndicator.textContent = `Slice ${currentKernelSlice + 1}/${kernelSize}`;
+        
+        const kernelNextButton = document.createElement('button');
+        kernelNextButton.className = 'three-d-view-button';
+        kernelNextButton.textContent = 'Next Slice →';
+        kernelNextButton.addEventListener('click', function() {
+            currentKernelSlice = Math.min(kernelSize - 1, currentKernelSlice + 1);
+            updateKernelVisualization();
+        });
+        
+        kernelControls.appendChild(kernelPrevButton);
+        kernelControls.appendChild(kernelSliceIndicator);
+        kernelControls.appendChild(kernelNextButton);
+        
+        kernelVis.appendChild(kernelControls);
+        
+        // Create container for kernel matrix
+        const kernelMatrixContainer = document.createElement('div');
+        kernelMatrixContainer.id = 'kernel-matrix-container';
+        kernelMatrixContainer.style.display = 'grid';
+        kernelMatrixContainer.style.gridTemplateColumns = `repeat(${kernelSize}, ${cellSize * 1.5}px)`;
+        kernelMatrixContainer.style.gap = '1px';
+        kernelMatrixContainer.style.margin = '10px auto';
+        kernelMatrixContainer.style.width = 'fit-content';
+        
+        // Function to update kernel visualization
+        function updateKernelVisualization() {
+            // Update slice indicator
+            document.getElementById('kernel-slice-indicator').textContent = 
+                `Slice ${currentKernelSlice + 1}/${kernelSize}`;
+            
+            // Clear previous kernel visualization
+            const container = document.getElementById('kernel-matrix-container');
+            while (container.firstChild) container.removeChild(container.firstChild);
+            
+            // Draw kernel slice
+            for (let y = 0; y < kernelSize; y++) {
+                for (let x = 0; x < kernelSize; x++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'cell kernel';
+                    cell.style.width = `${cellSize * 1.5}px`;
+                    cell.style.height = `${cellSize * 1.5}px`;
+                    
+                    // For display purposes, don't flip the kernel
+                    cell.textContent = kernelVolume[currentKernelSlice][y][x];
+                    
+                    container.appendChild(cell);
+                }
+            }
+        }
+        
+        kernelVis.appendChild(kernelMatrixContainer);
+        
+        // Add note about kernel flipping for convolution
+        if (operation === 'convolution') {
+            const flipNote = document.createElement('div');
+            flipNote.className = 'kernel-flip-note';
+            flipNote.textContent = '(Kernel is flipped during convolution)';
+            kernelVis.appendChild(flipNote);
+        }
+        
+        // Initialize the kernel visualization
+        updateKernelVisualization();
     }
     
     // Perform one step of naive 3D convolution/cross-correlation
