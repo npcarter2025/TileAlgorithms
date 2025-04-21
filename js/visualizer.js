@@ -1,3 +1,44 @@
+// Theme Toggle Functionality
+document.addEventListener('DOMContentLoaded', function() {
+    const themeToggle = document.getElementById('theme-toggle');
+    const themeIcon = themeToggle.querySelector('i');
+    
+    // Check if user previously set a theme preference
+    const savedTheme = localStorage.getItem('theme');
+    if (savedTheme === 'light') {
+        document.body.classList.add('light-theme');
+        themeIcon.classList.remove('fa-sun');
+        themeIcon.classList.add('fa-moon');
+    }
+    
+    // Toggle theme when button is clicked
+    themeToggle.addEventListener('click', function() {
+        document.body.classList.toggle('light-theme');
+        
+        // Update icon
+        if (document.body.classList.contains('light-theme')) {
+            themeIcon.classList.remove('fa-sun');
+            themeIcon.classList.add('fa-moon');
+            localStorage.setItem('theme', 'light');
+        } else {
+            themeIcon.classList.remove('fa-moon');
+            themeIcon.classList.add('fa-sun');
+            localStorage.setItem('theme', 'dark');
+        }
+        
+        // If any visualizations are currently shown, redraw them to update colors
+        if (document.getElementById('1d-naive-canvas').childNodes.length > 0) {
+            draw1DArrays();
+        }
+        if (document.getElementById('2d-naive-canvas').childNodes.length > 0) {
+            draw2DMatrices();
+        }
+        if (document.getElementById('3d-naive-canvas').childNodes.length > 0) {
+            draw3DVolumes();
+        }
+    });
+});
+
 // DOM Elements
 document.addEventListener('DOMContentLoaded', function() {
     console.log("DOM fully loaded");
