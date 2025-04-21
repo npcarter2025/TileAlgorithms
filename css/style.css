@@ -59,6 +59,23 @@ body {
     font-size: 14px;
 }
 
+/* Author info in top left corner */
+.author-info {
+    position: fixed;
+    top: 1rem;
+    left: 1rem;
+    z-index: 1000;
+    padding: 0.5rem 1rem;
+    background-color: var(--primary-color);
+    color: white;
+    border-radius: var(--border-radius);
+    box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+    font-size: 0.9rem;
+    font-weight: 500;
+    line-height: 1.4;
+    text-align: center;
+}
+
 /* Theme toggle button */
 .theme-toggle {
     position: fixed;
