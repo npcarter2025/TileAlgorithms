@@ -1,0 +1,20 @@
+# Compiled binaries
+bin/
+*/bin/
+*.o
+*.out
+*.exe
+
+# Temporary files
+temp_input.txt
+*.tmp
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+# Editor/IDE files
+.vscode/
+.idea/
+*.swp
+*~ 
