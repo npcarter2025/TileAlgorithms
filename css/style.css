@@ -11,6 +11,7 @@
     --tile-color: rgba(0, 120, 212, 0.4);
     --kernel-color: rgba(215, 131, 127, 0.6);
     --output-color: rgba(106, 153, 85, 0.5);
+    --active-cell-color: #22c55e; /* Bright green for active cells */
     --background-color: #252526;
     --card-background: #2d2d2d;
     --border-color: #454545;
@@ -34,6 +35,7 @@
     --tile-color: rgba(9, 105, 218, 0.3);
     --kernel-color: rgba(207, 34, 46, 0.5);
     --output-color: rgba(45, 164, 78, 0.4);
+    --active-cell-color: #16a34a; /* Slightly darker green for light theme */
     --background-color: #ffffff;
     --card-background: #f6f8fa;
     --border-color: #d0d7de;
@@ -337,20 +339,64 @@ footer a {
     justify-content: center;
     border: 1px solid var(--border-color);
     background-color: var(--card-background);
-    font-weight: 500;
+    font-weight: 600;
     transition: all 0.3s;
     color: var(--text-color);
     font-family: var(--mono-font);
+    padding: 4px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+/* Define a pulsing animation for active cells */
+@keyframes pulse {
+    0% {
+        transform: scale(1);
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    }
+    50% {
+        transform: scale(1.05);
+        box-shadow: 0 3px 6px rgba(0, 0, 0, 0.4);
+    }
+    100% {
+        transform: scale(1);
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    }
 }
 
 .cell.active {
-    border-color: var(--primary-color);
-    background-color: var(--primary-color);
+    border-color: var(--active-cell-color);
+    background-color: var(--active-cell-color);
     color: white;
+    font-weight: 700;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3), 0 0 12px var(--active-cell-color);
+    z-index: 1;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+    animation: pulse 1.5s infinite ease-in-out;
+    position: relative;
+}
+
+/* Add an additional glow indicator for the active cell */
+.cell.active::after {
+    content: '';
+    position: absolute;
+    top: -3px;
+    left: -3px;
+    right: -3px;
+    bottom: -3px;
+    border: 2px solid var(--active-cell-color);
+    border-radius: 3px;
+    opacity: 0.6;
+    pointer-events: none;
+    z-index: -1;
 }
 
 .cell.kernel {
     background-color: var(--kernel-color);
+}
+
+/* Override the kernel background when the cell is active */
+.cell.kernel.active {
+    background-color: var(--active-cell-color);
 }
 
 .cell.tile {

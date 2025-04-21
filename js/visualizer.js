@@ -3,12 +3,18 @@ document.addEventListener('DOMContentLoaded', function() {
     const themeToggle = document.getElementById('theme-toggle');
     const themeIcon = themeToggle.querySelector('i');
     
-    // Check if user previously set a theme preference
+    // Set light theme as default if no preference is saved
     const savedTheme = localStorage.getItem('theme');
-    if (savedTheme === 'light') {
+    if (savedTheme === 'dark') {
+        // Keep dark theme if explicitly saved
+        themeIcon.classList.remove('fa-moon');
+        themeIcon.classList.add('fa-sun');
+    } else {
+        // Default to light theme
         document.body.classList.add('light-theme');
         themeIcon.classList.remove('fa-sun');
         themeIcon.classList.add('fa-moon');
+        localStorage.setItem('theme', 'light');
     }
     
     // Toggle theme when button is clicked
@@ -193,6 +199,7 @@ function initialize1DVisualization() {
             cell.className = 'cell';
             cell.style.width = `${cellSize}px`;
             cell.style.height = `${cellSize}px`;
+            cell.style.fontSize = `${Math.max(14, cellSize * 0.7)}px`;
             cell.textContent = inputArray[i];
             
             // Highlight active elements for naive implementation
@@ -232,6 +239,7 @@ function initialize1DVisualization() {
             cell.className = 'cell';
             cell.style.width = `${cellSize}px`;
             cell.style.height = `${cellSize}px`;
+            cell.style.fontSize = `${Math.max(14, cellSize * 0.7)}px`;
             cell.textContent = inputArray[i];
             
             // Add tile background
@@ -273,8 +281,9 @@ function initialize1DVisualization() {
         for (let i = 0; i < outputArray.length; i++) {
             const cell = document.createElement('div');
             cell.className = 'cell output';
-            cell.style.width = `${cellSize}px`;
-            cell.style.height = `${cellSize}px`;
+            cell.style.width = `${cellSize * 1.5}px`;
+            cell.style.height = `${cellSize * 1.5}px`;
+            cell.style.fontSize = `${Math.max(16, cellSize * 0.8)}px`;
             cell.textContent = outputArray[i];
             
             if (i === naiveCurrentStep.x || i === tiledCurrentStep.x) {
@@ -317,6 +326,32 @@ function initialize1DVisualization() {
         return true; // Still computing
     }
     
+    // Function to go back one step in the naive implementation
+    function naiveBackStep() {
+        // If we're at the beginning or before of the first step, do nothing
+        if (naiveCurrentStep.x === 0 && naiveCurrentStep.k === 0) {
+            return;
+        }
+        
+        // Move back one kernel position
+        naiveCurrentStep.k--;
+        
+        // If we've moved before the start of the kernel
+        if (naiveCurrentStep.k < 0) {
+            // Move to the previous window position
+            naiveCurrentStep.x--;
+            // And to the last kernel position
+            naiveCurrentStep.k = kernelSize - 1;
+            
+            // If we've also moved back to a previous output calculation
+            if (naiveCurrentStep.x < 0) {
+                // Start at the beginning
+                naiveCurrentStep.x = 0;
+                naiveCurrentStep.k = 0;
+            }
+        }
+    }
+    
     // Perform one step of tiled convolution/cross-correlation
     function tiledStep() {
         if (tiledCurrentStep.tile >= Math.ceil(arraySize / tileSize)) {
@@ -348,6 +383,44 @@ function initialize1DVisualization() {
         }
         
         return tiledCurrentStep.tile < Math.ceil(arraySize / tileSize);
+    }
+    
+    // Function to go back one step in the tiled implementation
+    function tiledBackStep() {
+        // If we're at the beginning or before of the first step, do nothing
+        if (tiledCurrentStep.tile === 0 && tiledCurrentStep.x === 0 && tiledCurrentStep.k === 0) {
+            return;
+        }
+        
+        // Move back one kernel position
+        tiledCurrentStep.k--;
+        
+        // If we've moved before the start of the kernel
+        if (tiledCurrentStep.k < 0) {
+            // Move to the previous window position within the current tile
+            tiledCurrentStep.x--;
+            // And to the last kernel position
+            tiledCurrentStep.k = kernelSize - 1;
+            
+            // If we've moved before the current tile's starting position
+            const tileStart = tiledCurrentStep.tile * tileSize;
+            if (tiledCurrentStep.x < tileStart) {
+                // If there are previous tiles
+                if (tiledCurrentStep.tile > 0) {
+                    // Move to the previous tile
+                    tiledCurrentStep.tile--;
+                    // And to its last window position
+                    const newTileStart = tiledCurrentStep.tile * tileSize;
+                    const maxX = Math.min(newTileStart + tileSize - kernelSize, arraySize - kernelSize);
+                    tiledCurrentStep.x = maxX;
+                } else {
+                    // If we're already at the first tile, reset to the beginning
+                    tiledCurrentStep.tile = 0;
+                    tiledCurrentStep.x = 0;
+                    tiledCurrentStep.k = 0;
+                }
+            }
+        }
     }
     
     // Run animation
@@ -457,8 +530,19 @@ function initialize1DVisualization() {
     });
     
     stepButton.addEventListener('click', function() {
-        stopAnimation();
-        animate();
+        naiveStep();
+        tiledStep();
+        draw1DArrays();
+    });
+    
+    // Add event listener for rewind button
+    const rwdButton = document.getElementById('1d-rwd');
+    
+    // Rewind button click handler
+    rwdButton.addEventListener('click', function() {
+        naiveBackStep();
+        tiledBackStep();
+        draw1DArrays();
     });
     
     resetButton.addEventListener('click', resetVisualization);
@@ -490,7 +574,17 @@ function initialize2DVisualization() {
     
     // State variables
     let matrixSize = parseInt(matrixSizeSlider.value);
-    let kernelSize = parseInt(kernelSizeSlider.value);
+    let kernelSize = Math.min(parseInt(kernelSizeSlider.value), matrixSize);
+    
+    // Update kernel slider if needed
+    if (kernelSize !== parseInt(kernelSizeSlider.value)) {
+        kernelSizeSlider.value = kernelSize;
+    }
+    
+    // Update displayed values
+    matrixSizeValue.textContent = `${matrixSize}×${matrixSize}`;
+    kernelSizeValue.textContent = `${kernelSize}×${kernelSize}`;
+    
     let tileSize = parseInt(tileSizeSlider.value);
     let operation = operationSelect.value;
     let inputMatrix = [];
@@ -503,25 +597,64 @@ function initialize2DVisualization() {
     
     // Initialize the matrices
     function initializeMatrices() {
-        // Generate random input matrix
-        inputMatrix = Array.from({length: matrixSize}, () => 
-            Array.from({length: matrixSize}, () => Math.floor(Math.random() * 10))
-        );
-        
-        // Generate random kernel matrix
-        kernelMatrix = Array.from({length: kernelSize}, () => 
-            Array.from({length: kernelSize}, () => Math.floor(Math.random() * 5))
-        );
-        
-        // Initialize output matrix
-        const outputSize = matrixSize - kernelSize + 1;
-        outputMatrix = Array.from({length: outputSize}, () => 
-            Array(outputSize).fill(0)
-        );
-        
-        // Reset step trackers
-        naiveCurrentStep = {x: 0, y: 0, kx: 0, ky: 0};
-        tiledCurrentStep = {tileX: 0, tileY: 0, x: 0, y: 0, kx: 0, ky: 0};
+        try {
+            // Ensure kernel size is valid and matrix size is positive
+            kernelSize = Math.min(kernelSize, matrixSize);
+            if (kernelSize < 1) kernelSize = 1;
+            if (matrixSize < 1) matrixSize = 5;  // Default to a reasonable size
+            
+            // Generate random input matrix
+            inputMatrix = Array.from({length: matrixSize}, () => 
+                Array.from({length: matrixSize}, () => Math.floor(Math.random() * 10))
+            );
+            
+            // Generate random kernel matrix
+            kernelMatrix = Array.from({length: kernelSize}, () => 
+                Array.from({length: kernelSize}, () => Math.floor(Math.random() * 5))
+            );
+            
+            // Initialize output matrix
+            const outputSize = Math.max(1, matrixSize - kernelSize + 1);
+            outputMatrix = Array.from({length: outputSize}, () => 
+                Array(outputSize).fill(0)
+            );
+            
+            // Reset step trackers
+            naiveCurrentStep = {x: 0, y: 0, kx: 0, ky: 0};
+            tiledCurrentStep = {tileX: 0, tileY: 0, x: 0, y: 0, kx: 0, ky: 0};
+            
+            // Verify matrices were created properly
+            if (!inputMatrix.length || !kernelMatrix.length || !outputMatrix.length) {
+                throw new Error("Matrix creation failed");
+            }
+            
+            // Update display values to match actual sizes
+            matrixSizeValue.textContent = `${matrixSize}×${matrixSize}`;
+            kernelSizeValue.textContent = `${kernelSize}×${kernelSize}`;
+            
+            console.log("Matrices initialized successfully");
+        } catch (e) {
+            console.error("Error initializing matrices:", e);
+            
+            // Fallback to minimum valid sizes and values
+            inputMatrix = [[0, 0, 0], [0, 0, 0], [0, 0, 0]];
+            kernelMatrix = [[1]];
+            outputMatrix = [[0, 0], [0, 0]];
+            
+            matrixSize = 3;
+            kernelSize = 1;
+            
+            matrixSizeValue.textContent = `${matrixSize}×${matrixSize}`;
+            kernelSizeValue.textContent = `${kernelSize}×${kernelSize}`;
+            
+            // Update sliders to match fallback values
+            matrixSizeSlider.value = matrixSize;
+            kernelSizeSlider.value = kernelSize;
+            
+            // Reset step trackers
+            naiveCurrentStep = {x: 0, y: 0, kx: 0, ky: 0};
+            tiledCurrentStep = {tileX: 0, tileY: 0, x: 0, y: 0, kx: 0, ky: 0};
+        }
     }
     
     // Draw 2D matrix visualization
@@ -533,19 +666,30 @@ function initialize2DVisualization() {
         
         // Also clear the kernel visualization
         const kernelVis = document.getElementById('2d-kernel-visualization');
-        while (kernelVis.firstChild) kernelVis.removeChild(kernelVis.firstChild);
+        if (kernelVis) {
+            while (kernelVis.firstChild) kernelVis.removeChild(kernelVis.firstChild);
+        } else {
+            console.error('Cannot find 2d-kernel-visualization element');
+            return;
+        }
         
-        // Calculate cell size
+        // Ensure matrices are properly initialized
+        if (!inputMatrix || !inputMatrix.length || !kernelMatrix || !kernelMatrix.length || !outputMatrix || !outputMatrix.length) {
+            console.error('Matrices not properly initialized');
+            initializeMatrices();
+        }
+        
+        // Calculate cell size - increase minimum size from 20 to 30 and add a scalar multiplier
         const cellSize = Math.min(
             Math.min(naiveCanvas.clientWidth, naiveCanvas.clientHeight) / matrixSize,
-            20
-        );
+            30
+        ) * 1.2; // Apply a 1.2x multiplier to make cells larger
         
         // Draw naive implementation
         const naiveMatrixContainer = document.createElement('div');
         naiveMatrixContainer.style.display = 'grid';
         naiveMatrixContainer.style.gridTemplateColumns = `repeat(${matrixSize}, ${cellSize}px)`;
-        naiveMatrixContainer.style.gap = '1px';
+        naiveMatrixContainer.style.gap = '2px';
         
         for (let y = 0; y < matrixSize; y++) {
             for (let x = 0; x < matrixSize; x++) {
@@ -553,6 +697,7 @@ function initialize2DVisualization() {
                 cell.className = 'cell';
                 cell.style.width = `${cellSize}px`;
                 cell.style.height = `${cellSize}px`;
+                cell.style.fontSize = `${Math.max(14, cellSize * 0.7)}px`;
                 cell.textContent = inputMatrix[y][x];
                 
                 // Highlight kernel area for naive implementation
@@ -575,7 +720,7 @@ function initialize2DVisualization() {
         const tiledMatrixContainer = document.createElement('div');
         tiledMatrixContainer.style.display = 'grid';
         tiledMatrixContainer.style.gridTemplateColumns = `repeat(${matrixSize}, ${cellSize}px)`;
-        tiledMatrixContainer.style.gap = '1px';
+        tiledMatrixContainer.style.gap = '2px';
         
         for (let y = 0; y < matrixSize; y++) {
             for (let x = 0; x < matrixSize; x++) {
@@ -583,6 +728,7 @@ function initialize2DVisualization() {
                 cell.className = 'cell';
                 cell.style.width = `${cellSize}px`;
                 cell.style.height = `${cellSize}px`;
+                cell.style.fontSize = `${Math.max(14, cellSize * 0.7)}px`;
                 cell.textContent = inputMatrix[y][x];
                 
                 // Add tile background
@@ -612,15 +758,16 @@ function initialize2DVisualization() {
         const outputSize = matrixSize - kernelSize + 1;
         const outputMatrixContainer = document.createElement('div');
         outputMatrixContainer.style.display = 'grid';
-        outputMatrixContainer.style.gridTemplateColumns = `repeat(${outputSize}, ${cellSize}px)`;
-        outputMatrixContainer.style.gap = '1px';
+        outputMatrixContainer.style.gridTemplateColumns = `repeat(${outputSize}, ${cellSize * 1.5}px)`;
+        outputMatrixContainer.style.gap = '2px';
         
         for (let y = 0; y < outputSize; y++) {
             for (let x = 0; x < outputSize; x++) {
                 const cell = document.createElement('div');
                 cell.className = 'cell output';
-                cell.style.width = `${cellSize}px`;
-                cell.style.height = `${cellSize}px`;
+                cell.style.width = `${cellSize * 1.5}px`;
+                cell.style.height = `${cellSize * 1.5}px`;
+                cell.style.fontSize = `${Math.max(16, cellSize * 0.8)}px`;
                 cell.textContent = outputMatrix[y][x];
                 
                 // Highlight active output elements
@@ -640,8 +787,8 @@ function initialize2DVisualization() {
         
         const kernelMatrixContainer = document.createElement('div');
         kernelMatrixContainer.style.display = 'grid';
-        kernelMatrixContainer.style.gridTemplateColumns = `repeat(${kernelSize}, ${cellSize * 1.5}px)`;
-        kernelMatrixContainer.style.gap = '1px';
+        kernelMatrixContainer.style.gridTemplateColumns = `repeat(${kernelSize}, ${cellSize * 1.8}px)`;
+        kernelMatrixContainer.style.gap = '2px';
         kernelMatrixContainer.style.margin = '10px auto';
         kernelMatrixContainer.style.width = 'fit-content';
         
@@ -649,11 +796,17 @@ function initialize2DVisualization() {
             for (let x = 0; x < kernelSize; x++) {
                 const cell = document.createElement('div');
                 cell.className = 'cell kernel';
-                cell.style.width = `${cellSize * 1.5}px`;
-                cell.style.height = `${cellSize * 1.5}px`;
+                cell.style.width = `${cellSize * 1.8}px`;
+                cell.style.height = `${cellSize * 1.8}px`;
+                cell.style.fontSize = `${Math.max(14, cellSize * 0.7)}px`;
                 
                 // For convolution display, don't flip the kernel for clarity
-                cell.textContent = kernelMatrix[y][x];
+                // Add safety check for undefined matrix elements
+                if (kernelMatrix && kernelMatrix[y] && kernelMatrix[y][x] !== undefined) {
+                    cell.textContent = kernelMatrix[y][x];
+                } else {
+                    cell.textContent = '0';
+                }
                 
                 kernelMatrixContainer.appendChild(cell);
             }
@@ -688,10 +841,21 @@ function initialize2DVisualization() {
         // Get current position
         const {x, y, kx, ky} = naiveCurrentStep;
         
-        // Update output at current position
-        const kernelX = operation === 'convolution' ? kernelSize - 1 - kx : kx;
-        const kernelY = operation === 'convolution' ? kernelSize - 1 - ky : ky;
-        outputMatrix[y][x] += inputMatrix[y + ky][x + kx] * kernelMatrix[kernelY][kernelX];
+        // Make sure indices are within bounds
+        if (y < outputSize && x < outputSize && 
+            y + ky < matrixSize && x + kx < matrixSize && 
+            ky < kernelSize && kx < kernelSize) {
+            
+            // Update output at current position
+            const kernelX = operation === 'convolution' ? kernelSize - 1 - kx : kx;
+            const kernelY = operation === 'convolution' ? kernelSize - 1 - ky : ky;
+            
+            // Ensure kernel indices are within bounds
+            if (kernelY >= 0 && kernelY < kernelSize && 
+                kernelX >= 0 && kernelX < kernelSize) {
+                outputMatrix[y][x] += inputMatrix[y + ky][x + kx] * kernelMatrix[kernelY][kernelX];
+            }
+        }
         
         // Move to next position
         naiveCurrentStep.kx++;
@@ -713,6 +877,50 @@ function initialize2DVisualization() {
         return naiveCurrentStep.y < outputSize;
     }
     
+    // Function to go back one step in the 2D naive implementation
+    function naiveBackStep() {
+        // If we're at the beginning, do nothing
+        if (naiveCurrentStep.y === 0 && naiveCurrentStep.x === 0 && naiveCurrentStep.ky === 0 && naiveCurrentStep.kx === 0) {
+            return;
+        }
+        
+        // Move back one kernel position
+        naiveCurrentStep.kx--;
+        
+        // If we've moved before the left edge of the kernel
+        if (naiveCurrentStep.kx < 0) {
+            // Move up one row in the kernel
+            naiveCurrentStep.ky--;
+            // And to the last column position
+            naiveCurrentStep.kx = kernelSize - 1;
+            
+            // If we've moved before the top edge of the kernel
+            if (naiveCurrentStep.ky < 0) {
+                // Move left in the input matrix
+                naiveCurrentStep.x--;
+                // Reset kernel row
+                naiveCurrentStep.ky = kernelSize - 1;
+                
+                // If we've moved before the left edge of the input
+                if (naiveCurrentStep.x < 0) {
+                    // Move up one row in the input
+                    naiveCurrentStep.y--;
+                    // And to the last column position possible
+                    naiveCurrentStep.x = matrixSize - kernelSize;
+                    
+                    // If we've moved before the top edge of the input
+                    if (naiveCurrentStep.y < 0) {
+                        // Start at the beginning
+                        naiveCurrentStep.y = 0;
+                        naiveCurrentStep.x = 0;
+                        naiveCurrentStep.ky = 0;
+                        naiveCurrentStep.kx = 0;
+                    }
+                }
+            }
+        }
+    }
+    
     // Perform one step of tiled 2D convolution/cross-correlation
     function tiledStep() {
         const outputSize = matrixSize - kernelSize + 1;
@@ -727,11 +935,19 @@ function initialize2DVisualization() {
         const {tileX, tileY, x, y, kx, ky} = tiledCurrentStep;
         
         // Check if current position is valid for output
-        if (y < outputSize && x < outputSize && y + ky < matrixSize && x + kx < matrixSize) {
+        if (y < outputSize && x < outputSize && 
+            y + ky < matrixSize && x + kx < matrixSize && 
+            ky < kernelSize && kx < kernelSize) {
+            
             // Update output at current position
             const kernelX = operation === 'convolution' ? kernelSize - 1 - kx : kx;
             const kernelY = operation === 'convolution' ? kernelSize - 1 - ky : ky;
-            outputMatrix[y][x] += inputMatrix[y + ky][x + kx] * kernelMatrix[kernelY][kernelX];
+            
+            // Ensure kernel indices are within bounds
+            if (kernelY >= 0 && kernelY < kernelSize &&
+                kernelX >= 0 && kernelX < kernelSize) {
+                outputMatrix[y][x] += inputMatrix[y + ky][x + kx] * kernelMatrix[kernelY][kernelX];
+            }
         }
         
         // Move to next position
@@ -767,6 +983,80 @@ function initialize2DVisualization() {
         }
         
         return tiledCurrentStep.tileY < numTilesY;
+    }
+    
+    // Function to go back one step in the 2D tiled implementation
+    function tiledBackStep() {
+        // If we're at the beginning, do nothing
+        if (tiledCurrentStep.tileY === 0 && tiledCurrentStep.tileX === 0 && 
+            tiledCurrentStep.y === 0 && tiledCurrentStep.x === 0 && 
+            tiledCurrentStep.ky === 0 && tiledCurrentStep.kx === 0) {
+            return;
+        }
+        
+        // Move back one kernel position
+        tiledCurrentStep.kx--;
+        
+        // If we've moved before the left edge of the kernel
+        if (tiledCurrentStep.kx < 0) {
+            // Move up one row in the kernel
+            tiledCurrentStep.ky--;
+            // And to the last column position
+            tiledCurrentStep.kx = kernelSize - 1;
+            
+            // If we've moved before the top edge of the kernel
+            if (tiledCurrentStep.ky < 0) {
+                // Move left in the current window position
+                tiledCurrentStep.x--;
+                // Reset kernel row
+                tiledCurrentStep.ky = kernelSize - 1;
+                
+                // If we've moved before the left boundary of the current window
+                const tileStartX = tiledCurrentStep.tileX * tileSize;
+                if (tiledCurrentStep.x < tileStartX) {
+                    // Move up in the current tile
+                    tiledCurrentStep.y--;
+                    // Reset to rightmost position of current row
+                    const tileEndX = Math.min(tileStartX + tileSize - kernelSize, matrixSize - kernelSize);
+                    tiledCurrentStep.x = tileEndX;
+                    
+                    // If we've moved above the top boundary of the current tile
+                    const tileStartY = tiledCurrentStep.tileY * tileSize;
+                    if (tiledCurrentStep.y < tileStartY) {
+                        // Move left to the previous tile
+                        tiledCurrentStep.tileX--;
+                        
+                        // If we've moved left of the leftmost tile
+                        if (tiledCurrentStep.tileX < 0) {
+                            // Move up to the previous row of tiles
+                            tiledCurrentStep.tileY--;
+                            // Reset to rightmost tile of previous row
+                            tiledCurrentStep.tileX = Math.ceil(matrixSize / tileSize) - 1;
+                            
+                            // If we've moved above the topmost tile
+                            if (tiledCurrentStep.tileY < 0) {
+                                // Reset to beginning
+                                tiledCurrentStep.tileY = 0;
+                                tiledCurrentStep.tileX = 0;
+                                tiledCurrentStep.y = 0;
+                                tiledCurrentStep.x = 0;
+                                tiledCurrentStep.ky = 0;
+                                tiledCurrentStep.kx = 0;
+                                return;
+                            }
+                        }
+                        
+                        // Set position to bottom-right of the new tile
+                        const newTileStartY = tiledCurrentStep.tileY * tileSize;
+                        const newTileStartX = tiledCurrentStep.tileX * tileSize;
+                        const tileEndY = Math.min(newTileStartY + tileSize - kernelSize, matrixSize - kernelSize);
+                        const newTileEndX = Math.min(newTileStartX + tileSize - kernelSize, matrixSize - kernelSize);
+                        tiledCurrentStep.y = tileEndY;
+                        tiledCurrentStep.x = newTileEndX;
+                    }
+                }
+            }
+        }
     }
     
     // Run animation
@@ -805,29 +1095,62 @@ function initialize2DVisualization() {
     function resetVisualization() {
         stopAnimation();
         
-        // Reset output matrix
-        const outputSize = matrixSize - kernelSize + 1;
-        outputMatrix = Array.from({length: outputSize}, () => Array(outputSize).fill(0));
+        // Create new matrices if they don't exist
+        if (!inputMatrix || !kernelMatrix) {
+            initializeMatrices();
+            return;  // initializeMatrices will also reset step trackers
+        }
+        
+        // Reset output matrix - with check for valid output size
+        const outputSize = Math.max(1, matrixSize - kernelSize + 1);
+        try {
+            outputMatrix = Array.from({length: outputSize}, () => Array(outputSize).fill(0));
+        } catch (e) {
+            console.error('Error creating output matrix:', e);
+            // Fall back to a minimum valid size
+            outputMatrix = [[0]];
+        }
         
         // Reset step trackers
         naiveCurrentStep = {x: 0, y: 0, kx: 0, ky: 0};
         tiledCurrentStep = {tileX: 0, tileY: 0, x: 0, y: 0, kx: 0, ky: 0};
         
-        draw2DMatrices();
+        try {
+            draw2DMatrices();
+        } catch (e) {
+            console.error('Error in draw2DMatrices:', e);
+            initializeMatrices();  // Reinitialize everything if drawing fails
+            draw2DMatrices();
+        }
     }
     
     // Event listeners
     matrixSizeSlider.addEventListener('input', function() {
         matrixSize = parseInt(this.value);
         matrixSizeValue.textContent = `${matrixSize}×${matrixSize}`;
+        
+        // Ensure kernel size doesn't exceed matrix size
+        if (kernelSize > matrixSize) {
+            kernelSize = matrixSize;
+            kernelSizeSlider.value = kernelSize;
+            kernelSizeValue.textContent = `${kernelSize}×${kernelSize}`;
+        }
+        
         resetVisualization();
         initializeMatrices();
         draw2DMatrices();
     });
     
     kernelSizeSlider.addEventListener('input', function() {
-        kernelSize = parseInt(this.value);
+        // Ensure kernel size doesn't exceed matrix size
+        kernelSize = Math.min(parseInt(this.value), matrixSize);
         kernelSizeValue.textContent = `${kernelSize}×${kernelSize}`;
+        
+        // Update slider value if it was constrained
+        if (parseInt(this.value) !== kernelSize) {
+            this.value = kernelSize;
+        }
+        
         resetVisualization();
         initializeMatrices();
         draw2DMatrices();
@@ -862,8 +1185,19 @@ function initialize2DVisualization() {
     });
     
     stepButton.addEventListener('click', function() {
-        stopAnimation();
-        animate();
+        naiveStep();
+        tiledStep();
+        draw2DMatrices();
+    });
+    
+    // Add event listener for rewind button
+    const rwdButton = document.getElementById('2d-rwd');
+    
+    // Rewind button click handler
+    rwdButton.addEventListener('click', function() {
+        naiveBackStep();
+        tiledBackStep();
+        draw2DMatrices();
     });
     
     resetButton.addEventListener('click', resetVisualization);
@@ -895,7 +1229,17 @@ function initialize3DVisualization() {
     
     // State variables
     let volumeSize = parseInt(volumeSizeSlider.value);
-    let kernelSize = parseInt(kernelSizeSlider.value);
+    let kernelSize = Math.min(parseInt(kernelSizeSlider.value), volumeSize);
+    
+    // Update kernel slider if needed
+    if (kernelSize !== parseInt(kernelSizeSlider.value)) {
+        kernelSizeSlider.value = kernelSize;
+    }
+    
+    // Update displayed values
+    volumeSizeValue.textContent = `${volumeSize}×${volumeSize}×${volumeSize}`;
+    kernelSizeValue.textContent = `${kernelSize}×${kernelSize}×${kernelSize}`;
+    
     let tileSize = parseInt(tileSizeSlider.value);
     let operation = operationSelect.value;
     let inputVolume = [];
@@ -912,6 +1256,9 @@ function initialize3DVisualization() {
     
     // Initialize the volumes
     function initializeVolumes() {
+        // Ensure kernel size is valid
+        kernelSize = Math.min(kernelSize, volumeSize);
+        
         // Generate random input volume
         inputVolume = Array.from({length: volumeSize}, () => 
             Array.from({length: volumeSize}, () =>
@@ -927,7 +1274,7 @@ function initialize3DVisualization() {
         );
         
         // Initialize output volume
-        const outputSize = volumeSize - kernelSize + 1;
+        const outputSize = Math.max(1, volumeSize - kernelSize + 1);
         outputVolume = Array.from({length: outputSize}, () => 
             Array.from({length: outputSize}, () =>
                 Array(outputSize).fill(0)
@@ -952,7 +1299,17 @@ function initialize3DVisualization() {
         
         // Also clear the kernel visualization
         const kernelVis = document.getElementById('3d-kernel-visualization');
+        if (!kernelVis) {
+            console.error('Cannot find 3d-kernel-visualization element');
+            return;
+        }
         while (kernelVis.firstChild) kernelVis.removeChild(kernelVis.firstChild);
+        
+        // Ensure volumes are properly initialized
+        if (!inputVolume || !inputVolume.length || !kernelVolume || !kernelVolume.length || !outputVolume || !outputVolume.length) {
+            console.error('Volumes not properly initialized');
+            initializeVolumes();
+        }
         
         // Add slice controls if they don't exist
         if (!document.querySelector('.three-d-controls')) {
@@ -1022,20 +1379,31 @@ function initialize3DVisualization() {
         document.querySelectorAll('#volume-slice-indicator').forEach(el => {
             el.textContent = `Slice ${currentViewZ + 1}/${volumeSize}`;
         });
-        document.getElementById('output-slice-indicator').textContent = 
-            `Slice ${currentOutputViewZ + 1}/${volumeSize}`;
         
-        // Calculate cell size
+        if (document.getElementById('output-slice-indicator')) {
+            document.getElementById('output-slice-indicator').textContent = 
+                `Slice ${currentOutputViewZ + 1}/${volumeSize}`;
+        }
+        
+        // Auto-update view to show active slice
+        if (naiveCurrentStep.z >= 0 && naiveCurrentStep.z < volumeSize) {
+            currentViewZ = naiveCurrentStep.z;
+        }
+        if (naiveCurrentStep.z >= 0 && naiveCurrentStep.z < volumeSize - kernelSize + 1) {
+            currentOutputViewZ = naiveCurrentStep.z;
+        }
+        
+        // Calculate cell size - increase minimum size from 20 to 30 and add a multiplier
         const cellSize = Math.min(
             Math.min(naiveCanvas.clientWidth, naiveCanvas.clientHeight) / volumeSize,
-            20
-        );
+            30
+        ) * 1.2; // Apply a 1.2x multiplier for larger cells
         
         // Draw naive implementation
         const naiveMatrixContainer = document.createElement('div');
         naiveMatrixContainer.style.display = 'grid';
         naiveMatrixContainer.style.gridTemplateColumns = `repeat(${volumeSize}, ${cellSize}px)`;
-        naiveMatrixContainer.style.gap = '1px';
+        naiveMatrixContainer.style.gap = '2px';
         
         for (let y = 0; y < volumeSize; y++) {
             for (let x = 0; x < volumeSize; x++) {
@@ -1043,7 +1411,15 @@ function initialize3DVisualization() {
                 cell.className = 'cell';
                 cell.style.width = `${cellSize}px`;
                 cell.style.height = `${cellSize}px`;
-                cell.textContent = inputVolume[currentViewZ][y][x];
+                cell.style.fontSize = `${Math.max(14, cellSize * 0.7)}px`;
+                
+                // Add safety check for undefined volume elements
+                if (inputVolume && inputVolume[currentViewZ] && 
+                    inputVolume[currentViewZ][y] && inputVolume[currentViewZ][y][x] !== undefined) {
+                    cell.textContent = inputVolume[currentViewZ][y][x];
+                } else {
+                    cell.textContent = '0';
+                }
                 
                 // Highlight kernel area for naive implementation
                 if (naiveCurrentStep.z <= currentViewZ && currentViewZ < naiveCurrentStep.z + kernelSize &&
@@ -1067,7 +1443,7 @@ function initialize3DVisualization() {
         const tiledMatrixContainer = document.createElement('div');
         tiledMatrixContainer.style.display = 'grid';
         tiledMatrixContainer.style.gridTemplateColumns = `repeat(${volumeSize}, ${cellSize}px)`;
-        tiledMatrixContainer.style.gap = '1px';
+        tiledMatrixContainer.style.gap = '2px';
         
         for (let y = 0; y < volumeSize; y++) {
             for (let x = 0; x < volumeSize; x++) {
@@ -1075,7 +1451,15 @@ function initialize3DVisualization() {
                 cell.className = 'cell';
                 cell.style.width = `${cellSize}px`;
                 cell.style.height = `${cellSize}px`;
-                cell.textContent = inputVolume[currentViewZ][y][x];
+                cell.style.fontSize = `${Math.max(14, cellSize * 0.7)}px`;
+                
+                // Add safety check for undefined volume elements
+                if (inputVolume && inputVolume[currentViewZ] && 
+                    inputVolume[currentViewZ][y] && inputVolume[currentViewZ][y][x] !== undefined) {
+                    cell.textContent = inputVolume[currentViewZ][y][x];
+                } else {
+                    cell.textContent = '0';
+                }
                 
                 // Add tile background
                 const tileX = Math.floor(x / tileSize);
@@ -1109,16 +1493,24 @@ function initialize3DVisualization() {
         const outputSize = volumeSize - kernelSize + 1;
         const outputMatrixContainer = document.createElement('div');
         outputMatrixContainer.style.display = 'grid';
-        outputMatrixContainer.style.gridTemplateColumns = `repeat(${outputSize}, ${cellSize}px)`;
-        outputMatrixContainer.style.gap = '1px';
+        outputMatrixContainer.style.gridTemplateColumns = `repeat(${outputSize}, ${cellSize * 1.5}px)`;
+        outputMatrixContainer.style.gap = '2px';
         
         for (let y = 0; y < outputSize; y++) {
             for (let x = 0; x < outputSize; x++) {
                 const cell = document.createElement('div');
                 cell.className = 'cell output';
-                cell.style.width = `${cellSize}px`;
-                cell.style.height = `${cellSize}px`;
-                cell.textContent = outputVolume[currentOutputViewZ][y][x];
+                cell.style.width = `${cellSize * 1.5}px`;
+                cell.style.height = `${cellSize * 1.5}px`;
+                cell.style.fontSize = `${Math.max(16, cellSize * 0.8)}px`;
+                
+                // Add safety check for undefined output elements
+                if (outputVolume && outputVolume[currentOutputViewZ] && 
+                    outputVolume[currentOutputViewZ][y] && outputVolume[currentOutputViewZ][y][x] !== undefined) {
+                    cell.textContent = outputVolume[currentOutputViewZ][y][x];
+                } else {
+                    cell.textContent = '0';
+                }
                 
                 // Highlight active output elements
                 if ((currentOutputViewZ === naiveCurrentStep.z && 
@@ -1138,92 +1530,6 @@ function initialize3DVisualization() {
         naiveCanvas.appendChild(naiveMatrixContainer);
         tiledCanvas.appendChild(tiledMatrixContainer);
         outputCanvas.appendChild(outputMatrixContainer);
-        
-        // Draw kernel visualization
-        const kernelVisTitle = document.createElement('div');
-        kernelVisTitle.className = 'kernel-vis-title';
-        kernelVisTitle.textContent = `${operation === 'convolution' ? 'Convolution' : 'Cross-Correlation'} Kernel:`;
-        kernelVis.appendChild(kernelVisTitle);
-        
-        // Add slice navigation for kernel
-        let currentKernelSlice = Math.min(Math.floor(kernelSize / 2), currentViewZ);
-        
-        const kernelControls = document.createElement('div');
-        kernelControls.className = 'three-d-controls';
-        
-        const kernelPrevButton = document.createElement('button');
-        kernelPrevButton.className = 'three-d-view-button';
-        kernelPrevButton.textContent = '← Prev Slice';
-        kernelPrevButton.addEventListener('click', function() {
-            currentKernelSlice = Math.max(0, currentKernelSlice - 1);
-            updateKernelVisualization();
-        });
-        
-        const kernelSliceIndicator = document.createElement('span');
-        kernelSliceIndicator.id = 'kernel-slice-indicator';
-        kernelSliceIndicator.textContent = `Slice ${currentKernelSlice + 1}/${kernelSize}`;
-        
-        const kernelNextButton = document.createElement('button');
-        kernelNextButton.className = 'three-d-view-button';
-        kernelNextButton.textContent = 'Next Slice →';
-        kernelNextButton.addEventListener('click', function() {
-            currentKernelSlice = Math.min(kernelSize - 1, currentKernelSlice + 1);
-            updateKernelVisualization();
-        });
-        
-        kernelControls.appendChild(kernelPrevButton);
-        kernelControls.appendChild(kernelSliceIndicator);
-        kernelControls.appendChild(kernelNextButton);
-        
-        kernelVis.appendChild(kernelControls);
-        
-        // Create container for kernel matrix
-        const kernelMatrixContainer = document.createElement('div');
-        kernelMatrixContainer.id = 'kernel-matrix-container';
-        kernelMatrixContainer.style.display = 'grid';
-        kernelMatrixContainer.style.gridTemplateColumns = `repeat(${kernelSize}, ${cellSize * 1.5}px)`;
-        kernelMatrixContainer.style.gap = '1px';
-        kernelMatrixContainer.style.margin = '10px auto';
-        kernelMatrixContainer.style.width = 'fit-content';
-        
-        // Function to update kernel visualization
-        function updateKernelVisualization() {
-            // Update slice indicator
-            document.getElementById('kernel-slice-indicator').textContent = 
-                `Slice ${currentKernelSlice + 1}/${kernelSize}`;
-            
-            // Clear previous kernel visualization
-            const container = document.getElementById('kernel-matrix-container');
-            while (container.firstChild) container.removeChild(container.firstChild);
-            
-            // Draw kernel slice
-            for (let y = 0; y < kernelSize; y++) {
-                for (let x = 0; x < kernelSize; x++) {
-                    const cell = document.createElement('div');
-                    cell.className = 'cell kernel';
-                    cell.style.width = `${cellSize * 1.5}px`;
-                    cell.style.height = `${cellSize * 1.5}px`;
-                    
-                    // For display purposes, don't flip the kernel
-                    cell.textContent = kernelVolume[currentKernelSlice][y][x];
-                    
-                    container.appendChild(cell);
-                }
-            }
-        }
-        
-        kernelVis.appendChild(kernelMatrixContainer);
-        
-        // Add note about kernel flipping for convolution
-        if (operation === 'convolution') {
-            const flipNote = document.createElement('div');
-            flipNote.className = 'kernel-flip-note';
-            flipNote.textContent = '(Kernel is flipped during convolution)';
-            kernelVis.appendChild(flipNote);
-        }
-        
-        // Initialize the kernel visualization
-        updateKernelVisualization();
     }
     
     // Perform one step of naive 3D convolution/cross-correlation
@@ -1236,11 +1542,23 @@ function initialize3DVisualization() {
         // Get current position
         const {x, y, z, kx, ky, kz} = naiveCurrentStep;
         
-        // Update output at current position
-        const kernelX = operation === 'convolution' ? kernelSize - 1 - kx : kx;
-        const kernelY = operation === 'convolution' ? kernelSize - 1 - ky : ky;
-        const kernelZ = operation === 'convolution' ? kernelSize - 1 - kz : kz;
-        outputVolume[z][y][x] += inputVolume[z + kz][y + ky][x + kx] * kernelVolume[kernelZ][kernelY][kernelX];
+        // Make sure indices are within bounds
+        if (z < outputSize && y < outputSize && x < outputSize &&
+            z + kz < volumeSize && y + ky < volumeSize && x + kx < volumeSize &&
+            kz < kernelSize && ky < kernelSize && kx < kernelSize) {
+            
+            // Update output at current position
+            const kernelX = operation === 'convolution' ? kernelSize - 1 - kx : kx;
+            const kernelY = operation === 'convolution' ? kernelSize - 1 - ky : ky;
+            const kernelZ = operation === 'convolution' ? kernelSize - 1 - kz : kz;
+            
+            // Ensure kernel indices are within bounds
+            if (kernelZ >= 0 && kernelZ < kernelSize &&
+                kernelY >= 0 && kernelY < kernelSize &&
+                kernelX >= 0 && kernelX < kernelSize) {
+                outputVolume[z][y][x] += inputVolume[z + kz][y + ky][x + kx] * kernelVolume[kernelZ][kernelY][kernelX];
+            }
+        }
         
         // Move to next position
         naiveCurrentStep.kx++;
@@ -1272,6 +1590,69 @@ function initialize3DVisualization() {
         return naiveCurrentStep.z < outputSize;
     }
     
+    // Function to go back one step in the 3D naive implementation
+    function naiveBackStep() {
+        // If we're at the beginning, do nothing
+        if (naiveCurrentStep.z === 0 && naiveCurrentStep.y === 0 && naiveCurrentStep.x === 0 && 
+            naiveCurrentStep.kz === 0 && naiveCurrentStep.ky === 0 && naiveCurrentStep.kx === 0) {
+            return;
+        }
+        
+        // Move back one kernel position along x
+        naiveCurrentStep.kx--;
+        
+        // If we've moved before the left edge of the kernel
+        if (naiveCurrentStep.kx < 0) {
+            // Move back one kernel position along y
+            naiveCurrentStep.ky--;
+            // Reset kernel x position
+            naiveCurrentStep.kx = kernelSize - 1;
+            
+            // If we've moved before the front edge of the kernel
+            if (naiveCurrentStep.ky < 0) {
+                // Move back one kernel position along z
+                naiveCurrentStep.kz--;
+                // Reset kernel y position
+                naiveCurrentStep.ky = kernelSize - 1;
+                
+                // If we've moved before the top edge of the kernel
+                if (naiveCurrentStep.kz < 0) {
+                    // Move back one input position along x
+                    naiveCurrentStep.x--;
+                    // Reset kernel z position
+                    naiveCurrentStep.kz = kernelSize - 1;
+                    
+                    // If we've moved before the left edge of the input
+                    if (naiveCurrentStep.x < 0) {
+                        // Move back one input position along y
+                        naiveCurrentStep.y--;
+                        // Reset input x position
+                        naiveCurrentStep.x = volumeSize - kernelSize;
+                        
+                        // If we've moved before the front edge of the input
+                        if (naiveCurrentStep.y < 0) {
+                            // Move back one input position along z
+                            naiveCurrentStep.z--;
+                            // Reset input y position
+                            naiveCurrentStep.y = volumeSize - kernelSize;
+                            
+                            // If we've moved before the top edge of the input
+                            if (naiveCurrentStep.z < 0) {
+                                // Start at the beginning
+                                naiveCurrentStep.z = 0;
+                                naiveCurrentStep.y = 0;
+                                naiveCurrentStep.x = 0;
+                                naiveCurrentStep.kz = 0;
+                                naiveCurrentStep.ky = 0;
+                                naiveCurrentStep.kx = 0;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
     // Perform one step of tiled 3D convolution/cross-correlation
     function tiledStep() {
         const outputSize = volumeSize - kernelSize + 1;
@@ -1285,13 +1666,21 @@ function initialize3DVisualization() {
         const {tileX, tileY, tileZ, x, y, z, kx, ky, kz} = tiledCurrentStep;
         
         // Check if current position is valid for output
-        if (z < outputSize && y < outputSize && x < outputSize && 
-            z + kz < volumeSize && y + ky < volumeSize && x + kx < volumeSize) {
+        if (z < outputSize && y < outputSize && x < outputSize &&
+            z + kz < volumeSize && y + ky < volumeSize && x + kx < volumeSize &&
+            kz < kernelSize && ky < kernelSize && kx < kernelSize) {
+            
             // Update output at current position
             const kernelX = operation === 'convolution' ? kernelSize - 1 - kx : kx;
             const kernelY = operation === 'convolution' ? kernelSize - 1 - ky : ky;
             const kernelZ = operation === 'convolution' ? kernelSize - 1 - kz : kz;
-            outputVolume[z][y][x] += inputVolume[z + kz][y + ky][x + kx] * kernelVolume[kernelZ][kernelY][kernelX];
+            
+            // Ensure kernel indices are within bounds
+            if (kernelZ >= 0 && kernelZ < kernelSize &&
+                kernelY >= 0 && kernelY < kernelSize &&
+                kernelX >= 0 && kernelX < kernelSize) {
+                outputVolume[z][y][x] += inputVolume[z + kz][y + ky][x + kx] * kernelVolume[kernelZ][kernelY][kernelX];
+            }
         }
         
         // Move to next position
@@ -1345,6 +1734,90 @@ function initialize3DVisualization() {
         }
         
         return tiledCurrentStep.tileZ < numTiles;
+    }
+    
+    // Function to go back one step in the 3D tiled implementation
+    function tiledBackStep() {
+        // If we're at the beginning, do nothing
+        if (tiledCurrentStep.tileZ === 0 && tiledCurrentStep.tileY === 0 && tiledCurrentStep.tileX === 0 && 
+            tiledCurrentStep.z === 0 && tiledCurrentStep.y === 0 && tiledCurrentStep.x === 0 && 
+            tiledCurrentStep.kz === 0 && tiledCurrentStep.ky === 0 && tiledCurrentStep.kx === 0) {
+            return;
+        }
+        
+        // Move back one kernel position along x
+        tiledCurrentStep.kx--;
+        
+        // Complex logic to handle moving back through a 3D tiled implementation
+        // This is a simplified version - actual implementation would need additional testing
+        if (tiledCurrentStep.kx < 0) {
+            tiledCurrentStep.ky--;
+            tiledCurrentStep.kx = kernelSize - 1;
+            
+            if (tiledCurrentStep.ky < 0) {
+                tiledCurrentStep.kz--;
+                tiledCurrentStep.ky = kernelSize - 1;
+                
+                if (tiledCurrentStep.kz < 0) {
+                    tiledCurrentStep.x--;
+                    tiledCurrentStep.kz = kernelSize - 1;
+                    
+                    const tileStartX = tiledCurrentStep.tileX * tileSize;
+                    if (tiledCurrentStep.x < tileStartX) {
+                        tiledCurrentStep.y--;
+                        const tileEndX = Math.min(tileStartX + tileSize - kernelSize, volumeSize - kernelSize);
+                        tiledCurrentStep.x = tileEndX;
+                        
+                        const tileStartY = tiledCurrentStep.tileY * tileSize;
+                        if (tiledCurrentStep.y < tileStartY) {
+                            tiledCurrentStep.z--;
+                            const tileEndY = Math.min(tileStartY + tileSize - kernelSize, volumeSize - kernelSize);
+                            tiledCurrentStep.y = tileEndY;
+                            
+                            const tileStartZ = tiledCurrentStep.tileZ * tileSize;
+                            if (tiledCurrentStep.z < tileStartZ) {
+                                tiledCurrentStep.tileX--;
+                                
+                                if (tiledCurrentStep.tileX < 0) {
+                                    tiledCurrentStep.tileY--;
+                                    tiledCurrentStep.tileX = Math.ceil(volumeSize / tileSize) - 1;
+                                    
+                                    if (tiledCurrentStep.tileY < 0) {
+                                        tiledCurrentStep.tileZ--;
+                                        tiledCurrentStep.tileY = Math.ceil(volumeSize / tileSize) - 1;
+                                        
+                                        if (tiledCurrentStep.tileZ < 0) {
+                                            // Reset to beginning
+                                            tiledCurrentStep.tileZ = 0;
+                                            tiledCurrentStep.tileY = 0;
+                                            tiledCurrentStep.tileX = 0;
+                                            tiledCurrentStep.z = 0;
+                                            tiledCurrentStep.y = 0;
+                                            tiledCurrentStep.x = 0;
+                                            tiledCurrentStep.kz = 0;
+                                            tiledCurrentStep.ky = 0;
+                                            tiledCurrentStep.kx = 0;
+                                            return;
+                                        }
+                                    }
+                                }
+                                
+                                // Set position to bottom-right of the new tile
+                                const newTileStartZ = tiledCurrentStep.tileZ * tileSize;
+                                const newTileStartY = tiledCurrentStep.tileY * tileSize;
+                                const newTileStartX = tiledCurrentStep.tileX * tileSize;
+                                const tileEndZ = Math.min(newTileStartZ + tileSize - kernelSize, volumeSize - kernelSize);
+                                const newTileEndY = Math.min(newTileStartY + tileSize - kernelSize, volumeSize - kernelSize);
+                                const newTileEndX = Math.min(newTileStartX + tileSize - kernelSize, volumeSize - kernelSize);
+                                tiledCurrentStep.z = tileEndZ;
+                                tiledCurrentStep.y = newTileEndY;
+                                tiledCurrentStep.x = newTileEndX;
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
     
     // Run animation
@@ -1410,13 +1883,21 @@ function initialize3DVisualization() {
     volumeSizeSlider.addEventListener('input', function() {
         volumeSize = parseInt(this.value);
         volumeSizeValue.textContent = `${volumeSize}×${volumeSize}×${volumeSize}`;
+        
+        // Ensure kernel size doesn't exceed volume size
+        if (kernelSize > volumeSize) {
+            kernelSize = volumeSize;
+            kernelSizeSlider.value = kernelSize;
+            kernelSizeValue.textContent = `${kernelSize}×${kernelSize}×${kernelSize}`;
+        }
+        
         resetVisualization();
         initializeVolumes();
         draw3DVolumes();
     });
     
     kernelSizeSlider.addEventListener('input', function() {
-        // Ensure kernel size doesn't exceed array size
+        // Ensure kernel size doesn't exceed volume size
         kernelSize = Math.min(parseInt(this.value), volumeSize);
         kernelSizeValue.textContent = `${kernelSize}×${kernelSize}×${kernelSize}`;
         
@@ -1459,8 +1940,19 @@ function initialize3DVisualization() {
     });
     
     stepButton.addEventListener('click', function() {
-        stopAnimation();
-        animate();
+        naiveStep();
+        tiledStep();
+        draw3DVolumes();
+    });
+    
+    // Add event listener for rewind button
+    const rwdButton = document.getElementById('3d-rwd');
+    
+    // Rewind button click handler
+    rwdButton.addEventListener('click', function() {
+        naiveBackStep();
+        tiledBackStep();
+        draw3DVolumes();
     });
     
     resetButton.addEventListener('click', resetVisualization);
