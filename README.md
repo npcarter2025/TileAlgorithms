@@ -1,8 +1,10 @@
 # Convolution and Cross-Correlation Implementations
 
-This repository contains implementations of 1D and 2D convolution and cross-correlation operations with both naive and tiled approaches.
+This repository contains implementations of 1D, 2D, and 3D Convolution and Cross-Correlation operations with both Naive and Tiled approaches.
 
 ## Interactive Visualizer
+
+![Interactive Visualizer Screenshot](./img/InteractiveVisualizerScreenshot.png)
 
 **[Try the Interactive Visualizer!](https://npcarter2025.github.io/TileAlgorithms/)** - An interactive web-based visualization tool to help understand how convolution and cross-correlation algorithms work, with both naive and tiled implementations.
 
